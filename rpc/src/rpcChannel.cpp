@@ -1,0 +1,97 @@
+#include "rpcChannel.h"
+#include "rpcheader.pb.h"
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include "rpcconfig.h"
+#include <iostream>
+#include <unistd.h>
+
+
+
+void RpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method,
+                          google::protobuf::RpcController* controller, const google::protobuf::Message* request,
+                          google::protobuf::Message* response, google::protobuf::Closure* done)
+{
+    const google::protobuf::ServiceDescriptor* service = method->service();
+    std::string service_name = service->name();
+    std::string method_name = method->name();
+    std::cout << "service name: " << service_name << std::endl;
+    std::cout << "method name: " << method_name << std::endl;
+
+    uint32_t args_size = 0;
+    std::string args_str;
+    if(request->SerializeToString(&args_str)){
+        args_size = args_str.size();
+    }
+    else{
+        std::cout << "serialize args failed" << std::endl;
+    }
+
+    fixbug::RpcHeader header;
+    header.set_service_name(service_name);
+    header.set_method_name(method_name);
+    header.set_arg_size(args_size);
+
+    uint32_t header_size;
+    std::string header_str;
+    if(header.SerializeToString(&header_str)){
+        header_size = header_str.size();
+        std::cout << "header: " << header_str << std::endl;
+    }
+    else{
+        std::cout << "serialize header failed" << std::endl;
+    }
+
+    std::string request_str;
+    request_str.insert(0, sizeof(uint32_t), (char)header_size);
+    request_str += header_str;
+    request_str += args_str;
+    std::cout << "request: " << request_str << std::endl;
+    fixbug::RpcHeader response_header;
+    
+
+    int clientfd = socket(AF_INET, SOCK_STREAM, 0);
+    if(clientfd < 0){
+        std::cerr << "socket failed" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    std::string ip = RpcConfig::GetInstance().Get("rpcserverip");
+    std::string port = RpcConfig::GetInstance().Get("rpcserverport");
+
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(ip.c_str());
+    server_addr.sin_port = htons(std::stoi(port));
+
+    if(connect(clientfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0){
+        std::cerr << "connect failed" << std::endl;
+        close(clientfd);
+        exit(EXIT_FAILURE);
+    }
+
+    if(send(clientfd, request_str.c_str(), request_str.size(), 0) < 0){
+        std::cerr << "send failed" << std::endl;
+        close(clientfd);
+        exit(EXIT_FAILURE);
+    }
+
+    char response_buf[1024] {0};
+    int response_size = recv(clientfd, response_buf, sizeof(response_buf), 0);
+    if(response_size < 0){
+        std::cerr << "recv failed" << std::endl;
+        close(clientfd);
+        return;
+    }
+
+    std::string response_str(response_buf, 0, response_size);
+    if(response_header.ParseFromString(response_str)){
+        std::cout << "response header!" << std::endl;
+    }
+    else{
+        std::cout << "parse response header failed" << std::endl;
+    }
+    close(clientfd);
+   
+}
