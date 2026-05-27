@@ -9,8 +9,8 @@ std::string RpcConfig::Get(std::string key){
 
 void RpcConfig::LoadConfigFile(std::string config_file){
     // load config file
-    std::fstream ifs(config_file, std::ios::in | std::ios::out);
-    if(!ifs){
+    std::fstream ifs(config_file, std::ios::out);
+    if(ifs.fail()){
         std::cout << "open config file failed: " << config_file << std::endl;
         exit(EXIT_FAILURE);
     }
@@ -39,6 +39,5 @@ void RpcConfig::LoadConfigFile(std::string config_file){
 
 RpcConfig& RpcConfig::GetInstance(){
     static RpcConfig instance;
-    instance.LoadConfigFile("config.txt");
     return instance;
 }
