@@ -14,6 +14,8 @@ public:
     bool Login(std::string name, std::string pwd){
         std::cout << "login!" << std::endl;
         std::cout << "name" << name << "passward" << pwd << std::endl;
+        std::cout << "test finished!" << std::endl;
+        return true;
     }
 
     void Login(::google::protobuf::RpcController* controller,
@@ -42,6 +44,7 @@ int main(int argc, char** argv){
     RpcProvider provider;
     provider.NotifyService(new UserService());
     
+    provider.Run();
 
     return 0;
 }

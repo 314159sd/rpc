@@ -10,8 +10,8 @@
 
 class RpcConfig{
 public:
-    RpcConfig();
-    ~RpcConfig();
+    RpcConfig()=default;
+    ~RpcConfig()=default;
     std::string Get(std::string key);
     void LoadConfigFile(std::string config_file);
     static RpcConfig& GetInstance();

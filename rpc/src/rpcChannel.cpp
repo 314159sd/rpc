@@ -7,7 +7,7 @@
 #include "rpcconfig.h"
 #include <iostream>
 #include <unistd.h>
-
+#include "rpcapplication.h"
 
 
 void RpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method,
@@ -38,17 +38,19 @@ void RpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method,
     std::string header_str;
     if(header.SerializeToString(&header_str)){
         header_size = header_str.size();
-        std::cout << "header: " << header_str << std::endl;
+        std::cout << "header: " << header_str.size() << std::endl;
     }
     else{
         std::cout << "serialize header failed" << std::endl;
     }
 
     std::string request_str;
-    request_str.insert(0, sizeof(uint32_t), (char)header_size);
+    // request_str.insert(0, sizeof(uint32_t), (char)header_size);
+    uint32_t header_size_big = htonl(header_size);
+    request_str.append((char*)&header_size_big, sizeof(uint32_t));
     request_str += header_str;
     request_str += args_str;
-    std::cout << "request: " << request_str << std::endl;
+    std::cout << "request: " << request_str.size() << std::endl;
     fixbug::RpcHeader response_header;
     
 
@@ -57,13 +59,15 @@ void RpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method,
         std::cerr << "socket failed" << std::endl;
         exit(EXIT_FAILURE);
     }
-    std::string ip = RpcConfig::GetInstance().Get("rpcserverip");
-    std::string port = RpcConfig::GetInstance().Get("rpcserverport");
+    std::string ip = RpcApplication::config_.Get("rpcserverip");
+    // std::cout << "rpc server ip: " << ip << std::endl; 
+    uint16_t port = atoi(RpcApplication::config_.Get("rpcserverport").c_str());
+    // std::cout << "rpc server port: " << port << std::endl;
 
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = inet_addr(ip.c_str());
-    server_addr.sin_port = htons(std::stoi(port));
+    server_addr.sin_port = htons(port);
 
     if(connect(clientfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0){
         std::cerr << "connect failed" << std::endl;

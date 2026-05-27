@@ -2,6 +2,7 @@
 #include <thread>
 #include <google/protobuf/descriptor.h>
 #include "rpcheader.pb.h"
+#include "rpcapplication.h"
 // #include <google/protobuf/stubs/callback.h>
 void RpcProvider::NotifyService(google::protobuf::Service* service){
     ServiceInfo service_info;
@@ -24,10 +25,12 @@ void RpcProvider::NotifyService(google::protobuf::Service* service){
 }
 
 void RpcProvider::Run(){
-    std::string ip = RpcConfig::GetInstance().Get("rpcserverip");
-    std::string port = RpcConfig::GetInstance().Get("rpcserverport");
+    std::string ip = RpcApplication::config_.Get("rpcserverip");
+    uint16_t port = atoi(RpcApplication::config_.Get("rpcserverport").c_str());
 
-    muduo::net::InetAddress addr(ip, std::stoi(port));
+    std::cout << ip << " " << port << std::endl;
+    muduo::net::InetAddress addr(ip, port);
+    
     muduo::net::TcpServer server(&loop_, addr, "RpcProvider");
     
     server.setConnectionCallback(std::bind(&RpcProvider::OnConnection, this, std::placeholders::_1));
@@ -54,9 +57,10 @@ void RpcProvider::OnMessage(const muduo::net::TcpConnectionPtr& conn, muduo::net
     std::string message = buf->retrieveAllAsString();
 
     uint32_t header_size = 0;
-    message.copy((char*)&header_size, sizeof(header_size));
-
-    std::string header_str = message.substr(sizeof(header_size), header_size);
+    message.copy((char*)&header_size, 4, 0);
+    header_size = ntohl(header_size); 
+    std::cout << "header size: " << header_size << std::endl;
+    std::string header_str = message.substr(4, header_size);
 
     fixbug::RpcHeader header;
     std::string service_name;
@@ -68,13 +72,14 @@ void RpcProvider::OnMessage(const muduo::net::TcpConnectionPtr& conn, muduo::net
         service_name = header.service_name();
         method_name = header.method_name();
         args_size = header.arg_size();
-
-        args_str = message.substr(sizeof(header_size) + args_size);
+        
+        std::cout << "args size: " << header_size << std::endl;
+        args_str = message.substr(4 + header_size, args_size);
 
         std::cout << "service name: " << service_name << std::endl;
         std::cout << "method name: " << method_name << std::endl;
         std::cout << "args size: " << args_size << std::endl;
-        std::cout << "args: " << args_str << std::endl;
+        // std::cout << "args: " << args_str.size() << std::endl;
     }
     else{
         std::cout << "invalid header" << std::endl;

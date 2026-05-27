@@ -1,7 +1,5 @@
 #include "rpcconfig.h"
 
-RpcConfig::RpcConfig() = default;
-RpcConfig::~RpcConfig() = default;
 
 std::string RpcConfig::Get(std::string key){
     return config_map_[key];
@@ -9,14 +7,15 @@ std::string RpcConfig::Get(std::string key){
 
 void RpcConfig::LoadConfigFile(std::string config_file){
     // load config file
-    std::fstream ifs(config_file, std::ios::out);
-    if(ifs.fail()){
+    std::fstream file;
+    file.open(config_file, std::ios::in);
+    if(file.fail()){
         std::cout << "open config file failed: " << config_file << std::endl;
         exit(EXIT_FAILURE);
     }
 
     std::string line;
-    while(std::getline(ifs, line)){
+    while(std::getline(file, line)){
         if(line.empty()){
             continue;
         }
@@ -35,6 +34,7 @@ void RpcConfig::LoadConfigFile(std::string config_file){
         iss >> key >> value;
         config_map_[key] = value;
     }
+    file.close();
 }
 
 RpcConfig& RpcConfig::GetInstance(){
