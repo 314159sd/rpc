@@ -1,0 +1,93 @@
+#include "zookeeperutil.h"
+#include "rpcapplication.h"
+#include <iostream>
+#include <cstring>
+#include <unistd.h>
+
+// 全局的watcher观察器
+void global_watcher(zhandle_t *zh, int type, int state, const char *path, void *watcherCtx) {
+    (void)zh;
+    (void)type;
+    (void)state;
+    (void)path;
+    (void)watcherCtx;
+}
+
+ZookeeperUtil::ZookeeperUtil() : zh_(nullptr) {}
+
+ZookeeperUtil::~ZookeeperUtil() {
+    if (zh_ != nullptr) {
+        zookeeper_close(zh_);
+        zh_ = nullptr;
+    }
+}
+
+void ZookeeperUtil::Init() {
+    std::string host = RpcApplication::config_.Get("rpczookeeperhost");
+    std::string port = RpcApplication::config_.Get("rpczookeeperport");
+    std::string connstr = host + ":" + port;
+
+    std::cout << "Connecting to ZooKeeper: " << connstr << std::endl;
+
+    zh_ = zookeeper_init(connstr.c_str(), global_watcher, 30000, nullptr, nullptr, 0);
+    if (zh_ == nullptr) {
+        std::cerr << "zookeeper_init error!" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    // 轮询等待连接
+    int timeout = 300;
+    while (timeout > 0) {
+        int state = zoo_state(zh_);
+        if (state == ZOO_CONNECTED_STATE) {
+            std::cout << "zookeeper_init success!" << std::endl;
+            std::cout << "zh_ pointer: " << (void*)zh_ << std::endl;
+            return;
+        }
+        usleep(100000);
+        timeout--;
+    }
+
+    std::cerr << "zookeeper connection timeout!" << std::endl;
+    exit(EXIT_FAILURE);
+}
+
+void ZookeeperUtil::Create(const char *path, const char *data, int datalen, int state) {
+    std::cout << "=== Create called ===" << std::endl;
+    std::cout << "zh_ pointer: " << (void*)zh_ << std::endl;
+    
+    if (zh_ == nullptr) {
+        std::cerr << "ERROR: ZookeeperUtil not initialized!" << std::endl;
+        return;
+    }
+
+    if (path == nullptr) {
+        std::cerr << "ERROR: path is null!" << std::endl;
+        return;
+    }
+    
+    std::cout << "path: " << path << std::endl;
+    std::cout << "data: " << (data ? data : "null") << std::endl;
+    std::cout << "datalen: " << datalen << std::endl;
+    std::cout << "state: " << state << std::endl;
+
+    // 确保 data 不为空
+    const char* node_data = data ? data : "";
+    int node_datalen = data ? datalen : 0;
+
+    std::cout << "Calling zoo_acreate..." << std::endl;
+    
+    // 使用异步API
+    zoo_acreate(zh_, path, node_data, node_datalen, &ZOO_OPEN_ACL_UNSAFE, state, nullptr, nullptr);
+    
+    std::cout << "zoo_acreate called successfully!" << std::endl;
+}
+
+void ZookeeperUtil::GetData(const char *path) {
+    if (zh_ == nullptr) {
+        std::cerr << "ZookeeperUtil not initialized!" << std::endl;
+        return;
+    }
+
+    zoo_aget(zh_, path, 0, nullptr, nullptr);
+}
